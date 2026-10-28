@@ -20,8 +20,10 @@ Understand who can do what in AWS by testing it. I signed in as a limited IAM us
 
 ## Challenge: upload `Image2.jpg` to bucket3
 - **Problem:** Upload `Image2.jpg` to bucket3.
-- **What I tried:** As `devuser` with no role, the upload failed and I could not view the bucket policy. After assuming `BucketsAccessRole`, I could view bucket3's bucket policy and read which principal it allows and which actions.
-- **Result:** Used what the bucket policy allows (the same idea as bucket2: access given by the resource, not by the role's own policy) and uploaded the file with the role assumed.
+- **What I tried:** As `devuser` with no role, the upload failed and I could not view the bucket policy. After assuming `BucketsAccessRole`, I could view bucket3's bucket policy, but `BucketsAccessRole` was not allowed to upload to bucket3.
+- **How I found it:** I read the bucket3 policy. The statement that references the `devuser` ID names a different role, `OtherBucketAccessRole`, as the principal that is allowed to write to the bucket.
+- **Fix:** I switched from `BucketsAccessRole` to `OtherBucketAccessRole` (Switch role, with the account ID and that role name) and uploaded `Image2.jpg` to bucket3. The upload worked.
+- **What it showed:** Which role I assume matters. Bucket3's resource-based policy allows only the principal it names, so I had to read the policy to find out which role to use.
 
 ## Troubleshooting
 In this lab the errors were the point, so I treated each one as a question: which policy allows or denies this action?
@@ -54,6 +56,8 @@ In this lab the errors were the point, so I treated each one as a question: whic
 | Download `Image2.jpg` from bucket1 | `BucketsAccessRole` | Allowed | `GrantBucket1Access` allows `s3:GetObject` on bucket1 |
 | View IAM user groups | `BucketsAccessRole` | Denied | No `iam:ListGroups` on the role |
 | Upload `Image2.jpg` to bucket2 | `BucketsAccessRole` | Allowed | Bucket policy `S3Write` on bucket2 |
+| Upload `Image2.jpg` to bucket3 | `BucketsAccessRole` | Denied | Bucket3's policy does not name this role |
+| Upload `Image2.jpg` to bucket3 | `OtherBucketAccessRole` | Allowed | Bucket3's policy names this role |
 
 Three kinds of policy were involved: an identity-based policy on the group (`DeveloperGroupPolicy`) and on the role (`GrantBucket1Access`, `ListAllBucketsPolicy`), a resource-based policy on the bucket (the bucket2 policy), and a trust policy that says who may assume the role.
 
@@ -61,4 +65,3 @@ Three kinds of policy were involved: an identity-based policy on the group (`Dev
 What surprised me is that the role had no permission for bucket2 in its own policies and could still write to it. A bucket policy can grant access by itself, so the real answer to "who can access this?" is in both the identity policies and the resource policy.
 
 In production I would start every permission from "deny" and grant only the specific actions and resources needed, and avoid `*` wildcards on actions and resources. I would give people roles that give temporary credentials instead of long-lived permissions, and require MFA to assume sensitive roles. I would keep bucket policies specific to named principals, leave S3 Block Public Access on, and test changes with the IAM Policy Simulator or IAM Access Analyzer before applying them. I would also use CloudTrail to review denied calls, because every attempt in this lab, allowed or not, is recorded as an API call.
-
